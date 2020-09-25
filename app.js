@@ -2,6 +2,7 @@ const fetch = require('node-fetch'),
   cfg = require('./cfg'),
   cheerio = require('cheerio'),
   fs = require('fs'),
+  Student = require('./student'),
   log = console.log;
 
 function removeAccents(str) {
@@ -23,19 +24,24 @@ async function writeFile(fileName, content) {
 }
 
 async function fetchGTStudent(id) {
-  let url = cfg.hcmUrl,
+  let url = cfg.hcmUrl + '?sobaodanh=' + id,
     options = {
       method: 'post',
-      body: JSON.stringify({
-        sobaodanh: id,
-      }),
       headers: {
         'Content-Type': 'application/json',
       },
     },
+    response;
+  try {
     response = await fetch(url, options);
-  log(`${response.url}: ${response.status}(${response.statusText})`);
-  return (await response.text()) || null;
+    log(`${response.url}: ${response.status}(${response.statusText})`);
+    return (await response.text()) || null;
+  } catch (error) {
+    if (error.name === 'AbortError') log('request was aborted');
+    log(error);
+    log(`${url}: failed`);
+    return null;
+  }
 }
 async function fetchGTStudents({ startId, endId }) {
   let students = [],
@@ -63,18 +69,16 @@ async function fetchGTStudentsRecursive(
 ) {
   let startStudentId = genStudentIdByInt(startId);
   await delay(timeOutEachId * 1000);
-  return fetchGTStudent(startStudentId).then((student) => {
+  return await fetchGTStudent(startStudentId).then(async (student) => {
     students.push(generateStudentHtmlToJson(student, startStudentId));
     startId++;
-    if (startId <= endId) {
-      return fetchGTStudentsRecursive(
+    if (startId <= endId)
+      return await fetchGTStudentsRecursive(
         { startId, endId, timeOutEachId },
         students,
         callback
       );
-    } else {
-      callback({ startId, endId, students });
-    }
+    else callback({ startId, endId, students });
   });
 }
 async function delay(ms) {
@@ -89,19 +93,19 @@ function generateStudentHtmlToJson(htmlBody, id) {
     let row = $('tr').eq(1);
     let cols = cheerio.load(row.html().trim(), { xmlMode: true })('td');
     let student = {
-      Id: id,
-      Name: cols.eq(0).text().trim(),
-      Date: cols.eq(1).text().trim(),
+      id: id,
+      name: cols.eq(0).text().trim(),
+      date: cols.eq(1).text().trim(),
     };
     let marks = covertMarkArrayToJson(
       convertMarkTextToArray(cols.eq(2).text().trim())
     );
     //log(marks)
     for (mark of marks) student = { ...student, ...mark };
-    log(student);
+    //log(student);
     return student;
   }
-  return { Id: id, Name: null, Date: null };
+  return { id: id, name: null, date: null };
 }
 
 function genStudentIdByInt(id) {
@@ -123,28 +127,81 @@ function covertMarkArrayToJson(markArray) {
   return markArray.map((mark) => {
     mark = mark.split('__');
     let markJson = {};
-    markJson[removeAccents(mark[0]).replace(/ /, '')] = +mark[1];
+    markJson[removeAccents(mark[0]).replace(/ /, '').toLowerCase()] = +mark[1];
     return markJson;
   });
 }
+function saveStudentsToFile(fromId, toId, data) {
+  writeFile('hcm_' + fromId + '__' + toId + '.json', JSON.stringify(data));
+}
 
-(async () => {
-  // await fetchGTStudents({ startId: 1, endId: 200 });
-  // await delay(20000)
-  //await fetchGTStudents({ startId: 201, endId: 400 });
-  // var seconds = [ 0, 1, 2, 3, 4, 5, 0.5, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 6,7 ],
-  // randomSeconds = () => seconds[Math.floor(Math.random() * seconds.length)];
-  let pageRange = { startId: 901, endId: 1200, timeOutEachId: 0.1 };
-  fetchGTStudentsRecursive(
-    //{ startId: 601, endId: 603, timeOutEachId: 0.1 },
-    pageRange,
+/**
+ *
+ * @param {*} totalCount
+ * @param {*} qpr : quantity id per range
+ * @param {*} timeOutEachId
+ * 
+ *  
+ * qpr = 200, rangeCount = totalCount/qpr
+  // i = 1
+  // 1 - 200 i - qpr
+  // i = 2
+  // 201 - 400 (i-1)+qpr+1 - i*oqr
+  // i = 3
+  // 401 - 600 (i-1)*qpr+1 - i*qpr
+  //
+ */
+function genRangId(totalCount, qpr, timeOutEachId) {
+  let ranges = [],
+    rangeCount = Math.floor(totalCount / qpr);
+  for (let i = 1; i < rangeCount; i++) {
+    let startId = (i - 1) * qpr + 1,
+      endId = i * qpr,
+      range = { startId: startId, endId: endId, timeOutEachId: timeOutEachId };
+    ranges.push(range);
+  }
+  // push final range
+  ranges.push({
+    startId: rangeCount * qpr + 1,
+    endId: totalCount,
+    timeOutEachId: timeOutEachId,
+  });
+  return ranges;
+}
+async function saveStudentsToDbOneRange({ startId, endId, timeOutEachId }) {
+  await fetchGTStudentsRecursive(
+    { startId, endId, timeOutEachId },
     [],
-    ({ startId, endId, students }) => {
-      log(students);
-      writeFile(
-        'hcm_' + startId + '__' + endId + '.json',
-        JSON.stringify(students)
-      );
+    async ({ students }) => {
+      //saveStudentsToFile(range.startId, endId, students);
+      await Student.insertMany(students);
     }
   );
+}
+async function saveStudentsToDbByAllRanges(startRangeIndex, ranges, callback) {
+  let range = ranges[startRangeIndex];
+  log(
+    `range[${startRangeIndex}/${ranges.length - 1}]: ${JSON.stringify(range)}`
+  );
+  await saveStudentsToDbOneRange(range);
+  startRangeIndex++;
+  if (startRangeIndex < ranges.length)
+    await saveStudentsToDbByAllRanges(startRangeIndex, ranges, callback);
+  else callback();
+}
+
+(async () => {
+  ranges = genRangId(74718, 10, 0.5);
+  await saveStudentsToDbByAllRanges(0, ranges, () => log('Done All Ranges'));
+  // let pageRange = { startId: 1501, endId: 1510, timeOutEachId: 0.5 };
+  // fetchGTStudentsRecursive(
+  //   pageRange,
+  //   [],
+  //   ({ endId, students }) => {
+  //     saveStudentsToFile(pageRange.startId, endId, students);
+  //     let Student = require('./student');
+  //     Student.insertMany(students);
+  //   }
+  // );
 })();
+// miss 02001481
