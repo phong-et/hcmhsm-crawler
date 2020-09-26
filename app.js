@@ -12,6 +12,7 @@ function removeAccents(str) {
     .replace(/đ/g, 'd')
     .replace(/Đ/g, 'D');
 }
+
 async function writeFile(fileName, content) {
   return new Promise((resolve, reject) => {
     fs.writeFile(fileName, content, function (err) {
@@ -21,6 +22,86 @@ async function writeFile(fileName, content) {
       resolve(true);
     });
   });
+}
+function saveStudentsToFile(fromId, toId, data) {
+  writeFile('hcm_' + fromId + '__' + toId + '.json', JSON.stringify(data));
+}
+
+async function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+function genStudentIdByInt(id) {
+  let studentIdPrefix = '020',
+    maxLengthStudentId = 5;
+  return (
+    studentIdPrefix + '0'.repeat(maxLengthStudentId - id.toString().length) + id
+  );
+}
+/**
+ * @param {*} totalCount
+ * @param {*} qpr : quantity id per range
+ * @param {*} timeOutEachId
+ * qpr = 200, rangeCount = totalCount/qpr
+  // i = 1
+  // 1 - 200 i - qpr
+  // i = 2
+  // 201 - 400 (i-1)+qpr+1 - i*oqr
+  // i = 3
+  // 401 - 600 (i-1)*qpr+1 - i*qpr
+ */
+function genRangId(totalCount, qpr, timeOutEachId) {
+  let ranges = [],
+    rangeCount = Math.floor(totalCount / qpr);
+  for (let i = 1; i < rangeCount; i++) {
+    let startId = (i - 1) * qpr + 1,
+      endId = i * qpr,
+      range = { startId: startId, endId: endId, timeOutEachId: timeOutEachId };
+    ranges.push(range);
+  }
+  // push final range
+  ranges.push({
+    startId: rangeCount * qpr + 1,
+    endId: totalCount,
+    timeOutEachId: timeOutEachId,
+  });
+  return ranges;
+}
+
+function convertMarkTextToArray(markText) {
+  markText = markText.replace(/KHXH: /g, 'KHXH:   ');
+  markText = markText.replace(/KHTN: /g, 'KHTN:   ');
+  markText = markText.replace(/:   /g, '__');
+  return markText.split('   ');
+}
+
+function covertMarkArrayToJson(markArray) {
+  return markArray.map((mark) => {
+    mark = mark.split('__');
+    let markJson = {};
+    markJson[removeAccents(mark[0]).replace(/ /, '').toLowerCase()] = +mark[1];
+    return markJson;
+  });
+}
+
+function generateStudentHtmlToJson(htmlBody, id) {
+  if (htmlBody && htmlBody.indexOf('Không tìm thấy số báo danh này') <= -1) {
+    let $ = cheerio.load(htmlBody);
+    let row = $('tr').eq(1);
+    let cols = cheerio.load(row.html().trim(), { xmlMode: true })('td');
+    let student = {
+      id: id,
+      name: cols.eq(0).text().trim(),
+      date: cols.eq(1).text().trim(),
+    };
+    let marks = covertMarkArrayToJson(
+      convertMarkTextToArray(cols.eq(2).text().trim())
+    );
+    for (mark of marks) student = { ...student, ...mark };
+    return student;
+  }
+  return { id: id, name: null, date: null };
 }
 
 async function fetchGTStudent(id) {
@@ -43,6 +124,8 @@ async function fetchGTStudent(id) {
     return null;
   }
 }
+
+// Deprecated
 async function fetchGTStudents({ startId, endId }) {
   let students = [],
     studentIds = [];
@@ -62,6 +145,7 @@ async function fetchGTStudents({ startId, endId }) {
     JSON.stringify(students)
   );
 }
+
 async function fetchGTStudentsRecursive(
   { startId, endId, timeOutEachId },
   students,
@@ -81,99 +165,12 @@ async function fetchGTStudentsRecursive(
     else callback({ startId, endId, students });
   });
 }
-async function delay(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
 
-function generateStudentHtmlToJson(htmlBody, id) {
-  if (htmlBody && htmlBody.indexOf('Không tìm thấy số báo danh này') <= -1) {
-    let $ = cheerio.load(htmlBody);
-    let row = $('tr').eq(1);
-    let cols = cheerio.load(row.html().trim(), { xmlMode: true })('td');
-    let student = {
-      id: id,
-      name: cols.eq(0).text().trim(),
-      date: cols.eq(1).text().trim(),
-    };
-    let marks = covertMarkArrayToJson(
-      convertMarkTextToArray(cols.eq(2).text().trim())
-    );
-    //log(marks)
-    for (mark of marks) student = { ...student, ...mark };
-    //log(student);
-    return student;
-  }
-  return { id: id, name: null, date: null };
-}
-
-function genStudentIdByInt(id) {
-  let studentIdPrefix = '020',
-    maxLengthStudentId = 5;
-  return (
-    studentIdPrefix + '0'.repeat(maxLengthStudentId - id.toString().length) + id
-  );
-}
-
-function convertMarkTextToArray(markText) {
-  markText = markText.replace(/KHXH: /g, 'KHXH:   ');
-  markText = markText.replace(/KHTN: /g, 'KHTN:   ');
-  markText = markText.replace(/:   /g, '__');
-  return markText.split('   ');
-}
-
-function covertMarkArrayToJson(markArray) {
-  return markArray.map((mark) => {
-    mark = mark.split('__');
-    let markJson = {};
-    markJson[removeAccents(mark[0]).replace(/ /, '').toLowerCase()] = +mark[1];
-    return markJson;
-  });
-}
-function saveStudentsToFile(fromId, toId, data) {
-  writeFile('hcm_' + fromId + '__' + toId + '.json', JSON.stringify(data));
-}
-
-/**
- *
- * @param {*} totalCount
- * @param {*} qpr : quantity id per range
- * @param {*} timeOutEachId
- * 
- *  
- * qpr = 200, rangeCount = totalCount/qpr
-  // i = 1
-  // 1 - 200 i - qpr
-  // i = 2
-  // 201 - 400 (i-1)+qpr+1 - i*oqr
-  // i = 3
-  // 401 - 600 (i-1)*qpr+1 - i*qpr
-  //
- */
-function genRangId(totalCount, qpr, timeOutEachId) {
-  let ranges = [],
-    rangeCount = Math.floor(totalCount / qpr);
-  for (let i = 1; i < rangeCount; i++) {
-    let startId = (i - 1) * qpr + 1,
-      endId = i * qpr,
-      range = { startId: startId, endId: endId, timeOutEachId: timeOutEachId };
-    ranges.push(range);
-  }
-  // push final range
-  ranges.push({
-    startId: rangeCount * qpr + 1,
-    endId: totalCount,
-    timeOutEachId: timeOutEachId,
-  });
-  return ranges;
-}
 async function saveStudentsToDbOneRange({ startId, endId, timeOutEachId }) {
   await fetchGTStudentsRecursive(
     { startId, endId, timeOutEachId },
     [],
     async ({ students }) => {
-      //saveStudentsToFile(range.startId, endId, students);
       await Student.insertMany(students);
     }
   );
@@ -191,17 +188,6 @@ async function saveStudentsToDbByAllRanges(startRangeIndex, ranges, callback) {
 }
 
 (async () => {
-  ranges = genRangId(74718, 10, 0.5);
-  await saveStudentsToDbByAllRanges(0, ranges, () => log('Done All Ranges'));
-  // let pageRange = { startId: 1501, endId: 1510, timeOutEachId: 0.5 };
-  // fetchGTStudentsRecursive(
-  //   pageRange,
-  //   [],
-  //   ({ endId, students }) => {
-  //     saveStudentsToFile(pageRange.startId, endId, students);
-  //     let Student = require('./student');
-  //     Student.insertMany(students);
-  //   }
-  // );
+  let ranges = genRangId(74718, 10, 0.5);
+  await saveStudentsToDbByAllRanges(105, ranges, () => log('Done All Ranges'));
 })();
-// miss 02001481
