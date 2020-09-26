@@ -38,14 +38,12 @@ async function insertMany(jsonStudents) {
     log(error);
   }
 }
-async function fetchstudents(cityId) {
-  var query = {
-    $where: 'this.cityId == ' + cityId,
-  };
-  //log(`find student of city with query : ${JSON.stringify(query)}`)
+async function fetchStudents(query) {
+  var query = query
+  log(`query : ${JSON.stringify(query)}`)
   db.connect();
   try {
-    let students = await student.find(query, 'Id Name').exec();
+    let students = await Student.find(query, 'id').exec();
     log('students.length=%s', students.length);
     await db.close();
     return students;
@@ -54,7 +52,7 @@ async function fetchstudents(cityId) {
   }
 }
 module.exports = {
-  fetchstudents,
+  fetchStudents,
   insertMany,
 };
 // (async function () { await fetchstudents(2) }())
