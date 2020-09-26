@@ -2,13 +2,13 @@
 
 ## Knowledge
 
-- Cheerio, should ```.text()``` instead ```.html()``` avoid encode entities html string
+- Cheerio, should use ```.text()``` instead ```.html()``` to avoid html string is encoded (entities html issues)
 - Avoid using ```Promise.all``` in many request network, should use ```Recursive```
-  - Example have array studentIds = [] 1000 id
+  - Example, a studentIds array has 1000 id
     - **Promise.all**
   
     ```js
-        async function fetchGTStudents(studentIds) {
+        async function fetchStudents(studentIds) {
             await Promise.all(
                 studentIds.map(async (studentId) => {
                 await delay(1000);
@@ -40,8 +40,11 @@
         }
     ```
 
-- Paging small number request for request a huge number request network (about 10000 request)
+- Paging id range for a huge quantity of request (about 10000 request).
+  - Examle has 74.560 request, should paging it to ranges
+    - One Range has 100 ids, so has 745 ranges
 
+- ```'0'.repeat(integer)```
 
 ## Util functions
 
