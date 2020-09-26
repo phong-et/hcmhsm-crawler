@@ -44,7 +44,7 @@
   - Examle has 74.560 request, should paging it to ranges
     - One Range has 100 ids, so has 745 ranges
 
-- ```'0'.repeat(integer)```
+- '0'```.repeat(integer)```
 
 ## Util functions
 
