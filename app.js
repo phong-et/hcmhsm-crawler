@@ -1,5 +1,3 @@
-const student = require('./student');
-
 const fetch = require('node-fetch'),
   cfg = require('./cfg'),
   cheerio = require('cheerio'),
