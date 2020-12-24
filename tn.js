@@ -1,9 +1,6 @@
-//baotayninh.vn/ket-qua-diem-thi-thpt-tay-ninh.html?tensbd=&cumthi=&p=1
-
 const fetch = require('node-fetch'),
-  cfg = require('./cfg'),
+  urls = require('./config').urls,
   cheerio = require('cheerio'),
-  fs = require('fs'),
   Student = require('./student'),
   log = console.log,
   delay = ({ second }) => {
@@ -11,10 +8,7 @@ const fetch = require('node-fetch'),
   },
   fetchTayNinhStudents = async (pageNumber) => {
     log('page= %s', pageNumber);
-    let response = await fetch(
-      'https://baotayninh.vn/ket-qua-diem-thi-thpt-tay-ninh.html?tensbd=&cumthi=&p=' +
-        pageNumber
-    );
+    let response = await fetch(urls.tayninh + pageNumber);
     let htmlBody = await response.text();
     return convertHtmlToJson(htmlBody);
   },
@@ -31,7 +25,6 @@ const fetch = require('node-fetch'),
       }
     });
     names.shift();
-    //log(names);
     // tr 1,2 are title
     // log(markTableStudent.eq(0).text());
     // log(markTableStudent.eq(1).text());
@@ -68,9 +61,6 @@ const fetch = require('node-fetch'),
 
       marks.push(mark);
     }
-    // marks.map((mark, i) => {
-    //   mark['name'] = names[i];
-    // });
     return marks;
   },
   saveTayNinhStudentsToDb = async (students) => {
@@ -80,7 +70,8 @@ const fetch = require('node-fetch'),
 (async () => {
   for (let i = 1; i <= 428; i++) {
     let students = await fetchTayNinhStudents(i);
-    await saveTayNinhStudentsToDb(students);
+    //log(students);
+    //await saveTayNinhStudentsToDb(students);
     await delay({ second: 1 });
   }
 })();
