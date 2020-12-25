@@ -72,7 +72,7 @@ const fetch = require('node-fetch'),
     if (data.Message && data.Message === 'Không tìm thấy thí sinh') {
       appendFile('./logs', id);
       log(id);
-      log(data)
+      log(data);
       marks = null;
     } else {
       let rawMarks = data.DIEM_THI.trim().replace(/:   /g, ':').split('   ');
@@ -134,13 +134,22 @@ const fetch = require('node-fetch'),
 
 (async () => {
   let studentIds = generateStudentId(766, 79236);
+  let students = [],
+    quantityStudentPerFetch = 20,
+    count = 1;
   for (let i = 0; i < studentIds.length; i++) {
     let studentId = studentIds[i];
     let student = await fetchStudents(studentId);
-    if (student) {
-      await saveToDb(student);
-      await delay({ second: 1 });
-    }
+    if (count <= quantityStudentPerFetch)
+      if (student) {
+        students.push(student);
+        count++;
+      } else {
+        await saveToDb(student);
+        await delay({ second: 1 });
+        count = 1;
+        students = [];
+      }
   }
   // TEST PART
   //   fetchStudents('01000002');
