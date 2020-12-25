@@ -1,9 +1,15 @@
 const fetch = require('node-fetch'),
   urls = require('./config').fetchUrls,
   Student = require('./student'),
+  appendFile = require('./utils').appendFile,
   log = console.log,
+  fs = require('fs'),
   delay = ({ second }) => {
     return new Promise((resolve) => setTimeout(resolve, second * 1000));
+  },
+  headers = {
+    'Content-Type': 'application/json',
+    Cookie: 'ASP.NET_SessionId=yivgp2dw20t2yavby4ti0go2',
   },
   studentFields = [
     'id',
@@ -41,18 +47,17 @@ const fetch = require('node-fetch'),
       method: 'POST',
       body: JSON.stringify({
         SOBAODANH: id,
-        ConfirmCode: 'N48uG',
+        ConfirmCode: 'bL3eD',
       }),
-      headers: {
-        'Content-Type': 'application/json',
-        Cookie: 'ASP.NET_SessionId=e4ip5lq1goxa3x1k1bgmwmik',
-      },
+      headers: headers,
     });
     let data = await response.json();
+    //log(data);
     data = convert(data, id);
     return data;
   },
   convert = (data, id) => {
+    // ===> Template response data
     // data = {
     //   HO_TEN: '',
     //   SOBAODANH: '',
@@ -62,33 +67,40 @@ const fetch = require('node-fetch'),
     //   GIOI_TINH: '',
     //   CMND: '',
     // };
-    //log(data);
-    let rawMarks = data.DIEM_THI.trim().replace(/:   /g, ':').split('   ');
+
     let marks = {};
-    rawMarks.forEach((mark) => {
-      mark = mark.split(':');
-      let m = {};
-      m[removeAccents(mark[0]).replace(/ /g, '').toLowerCase()] = +mark[1];
-      marks = { ...marks, ...m };
-    });
-    studentFields.forEach((field) => {
-      switch (field) {
-        case 'id':
-          marks[field] = id;
-          break;
-        case 'name':
-        case 'date':
-        case 'gender':
-          marks[field] = -1;
-          break;
-        case 'city':
-          marks[field] = 1;
-          break;
-        default:
-          marks[field] = marks[field] || -1;
-          break;
-      }
-    });
+    if (data.Message && data.Message === 'Không tìm thấy thí sinh') {
+      appendFile('./logs', id);
+      log(id);
+      log(data)
+      marks = null;
+    } else {
+      let rawMarks = data.DIEM_THI.trim().replace(/:   /g, ':').split('   ');
+      rawMarks.forEach((mark) => {
+        mark = mark.split(':');
+        let m = {};
+        m[removeAccents(mark[0]).replace(/ /g, '').toLowerCase()] = +mark[1];
+        marks = { ...marks, ...m };
+      });
+      studentFields.forEach((field) => {
+        switch (field) {
+          case 'id':
+            marks[field] = id;
+            break;
+          case 'name':
+          case 'date':
+          case 'gender':
+            marks[field] = -1;
+            break;
+          case 'city':
+            marks[field] = 1;
+            break;
+          default:
+            marks[field] = marks[field] || -1;
+            break;
+        }
+      });
+    }
     return marks;
   },
   generateStudentId = (from, to) => {
@@ -121,12 +133,14 @@ const fetch = require('node-fetch'),
   };
 
 (async () => {
-  let studentIds = generateStudentId(1, 79236);
+  let studentIds = generateStudentId(766, 79236);
   for (let i = 0; i < studentIds.length; i++) {
     let studentId = studentIds[i];
     let student = await fetchStudents(studentId);
-    await saveToDb(student);
-    await delay({ second: 1 });
+    if (student) {
+      await saveToDb(student);
+      await delay({ second: 1 });
+    }
   }
   // TEST PART
   //   fetchStudents('01000002');

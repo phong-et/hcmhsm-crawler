@@ -2,7 +2,7 @@ const db = require('./db');
 const mongoose = db.mongoose;
 const Schema = mongoose.Schema;
 const log = console.log;
-const COLLECTION_NAME = 'tayninh';
+const COLLECTION_NAME = 'hanoi';
 const studentSchema = new Schema({
   _id: Number,
   id: String,
