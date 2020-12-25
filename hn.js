@@ -9,7 +9,7 @@ const fetch = require('node-fetch'),
   },
   headers = {
     'Content-Type': 'application/json',
-    Cookie: 'ASP.NET_SessionId=yivgp2dw20t2yavby4ti0go2',
+    Cookie: 'ASP.NET_SessionId=xcuy24jfmk2jnructghd45fr',
   },
   studentFields = [
     'id',
@@ -47,7 +47,7 @@ const fetch = require('node-fetch'),
       method: 'POST',
       body: JSON.stringify({
         SOBAODANH: id,
-        ConfirmCode: 'bL3eD',
+        ConfirmCode: '3M370',
       }),
       headers: headers,
     });
@@ -89,6 +89,8 @@ const fetch = require('node-fetch'),
             break;
           case 'name':
           case 'date':
+            marks[field] = '';
+            break;
           case 'gender':
             marks[field] = -1;
             break;
@@ -133,23 +135,23 @@ const fetch = require('node-fetch'),
   };
 
 (async () => {
-  let studentIds = generateStudentId(766, 79236);
+  let studentIds = generateStudentId(1, 79236);
   let students = [],
     quantityStudentPerFetch = 20,
     count = 1;
   for (let i = 0; i < studentIds.length; i++) {
     let studentId = studentIds[i];
     let student = await fetchStudents(studentId);
-    if (count <= quantityStudentPerFetch)
-      if (student) {
-        students.push(student);
-        count++;
-      } else {
-        await saveToDb(student);
-        await delay({ second: 1 });
-        count = 1;
-        students = [];
-      }
+    if (student) {
+      students.push(student);
+      count++;
+    }
+    if (count > quantityStudentPerFetch) {
+      await saveToDb(students);
+      count = 1;
+      students = [];
+      await delay({ second: 1 });
+    }
   }
   // TEST PART
   //   fetchStudents('01000002');
