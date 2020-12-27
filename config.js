@@ -1,8 +1,15 @@
 module.exports = {
-  cites: {
+  cities: {
     hanoi:{
       url:'http://hanoiedu.vn/TraCuu/TraCuu',
       prefixId:'01',
+      cityId:1,
+      endId:79236,
+      crawlerGroup:'hanoi'
+    },
+    haiphong:{
+      url:'http://diemthi3.haiphong.edu.vn/TraCuu/TraCuu',
+      prefixId:'03',
       cityId:1,
       endId:79236,
       crawlerGroup:'hanoi'
