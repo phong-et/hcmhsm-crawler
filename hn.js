@@ -8,7 +8,7 @@ const fetch = require('node-fetch'),
   },
   headers = {
     'Content-Type': 'application/json',
-    Cookie: 'ASP.NET_SessionId=xcuy24jfmk2jnructghd45fr',
+    Cookie: 'ASP.NET_SessionId=0wrbdieh21ijeynimg0ixu0w',
   },
   studentFields = [
     'id',
@@ -47,7 +47,7 @@ const fetch = require('node-fetch'),
         method: 'POST',
         body: JSON.stringify({
           SOBAODANH: id,
-          ConfirmCode: 'BxVu3',
+          ConfirmCode: '3b8JY',
         }),
         headers: headers,
       });
@@ -143,7 +143,7 @@ const fetch = require('node-fetch'),
   };
 
 (async () => {
-  let studentIds = generateStudentId(43421, 79236);
+  let studentIds = generateStudentId(61758, 79236);
   let students = [],
     quantityStudentPerFetch = 15,
     count = 1;
