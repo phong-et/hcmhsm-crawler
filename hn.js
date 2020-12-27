@@ -3,7 +3,6 @@ const fetch = require('node-fetch'),
   Student = require('./student'),
   appendFile = require('./utils').appendFile,
   log = console.log,
-  fs = require('fs'),
   delay = ({ second }) => {
     return new Promise((resolve) => setTimeout(resolve, second * 1000));
   },
@@ -43,18 +42,27 @@ const fetch = require('node-fetch'),
   },
   fetchStudents = async (id) => {
     log('id=%s', id);
-    let response = await fetch(urls.hanoi, {
-      method: 'POST',
-      body: JSON.stringify({
-        SOBAODANH: id,
-        ConfirmCode: '3M370',
-      }),
-      headers: headers,
-    });
-    let data = await response.json();
-    //log(data);
-    data = convert(data, id);
-    return data;
+    try {
+      let response = await fetch(urls.hanoi, {
+        method: 'POST',
+        body: JSON.stringify({
+          SOBAODANH: id,
+          ConfirmCode: 'BxVu3',
+        }),
+        headers: headers,
+      });
+      let data = await response.json();
+      //log(data);
+      data = convert(data, id);
+      return data;
+    } catch (error) {
+      log(error);
+      if (error.message.indexOf('http://hanoiedu.vn/TraCuu/TraCuu') > -1) {
+        log('Fetch again id=%s', id);
+        delay({ second: 1 });
+        fetchStudents(id);
+      }
+    }
   },
   convert = (data, id) => {
     // ===> Template response data
@@ -135,9 +143,9 @@ const fetch = require('node-fetch'),
   };
 
 (async () => {
-  let studentIds = generateStudentId(1, 79236);
+  let studentIds = generateStudentId(43421, 79236);
   let students = [],
-    quantityStudentPerFetch = 20,
+    quantityStudentPerFetch = 15,
     count = 1;
   for (let i = 0; i < studentIds.length; i++) {
     let studentId = studentIds[i];
