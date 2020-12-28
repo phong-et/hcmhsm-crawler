@@ -4,9 +4,10 @@ module.exports = (city) => {
   const Schema = mongoose.Schema;
   const log = console.log;
   const COLLECTION_NAME = city;
-  const studentSchema = new Schema({
+  const schema = new Schema({
     _id: Number,
     id: String,
+    cmnd: String,
     name: String,
     date: String,
     gender: Number,
@@ -28,7 +29,7 @@ module.exports = (city) => {
     khxh: Number,
     khtn: Number,
   });
-  const Student = mongoose.model('student', studentSchema, COLLECTION_NAME);
+  const Student = mongoose.model('student', schema, COLLECTION_NAME);
   async function insertMany(jsonStudents) {
     try {
       db.connect();
@@ -54,6 +55,6 @@ module.exports = (city) => {
       log(error);
     }
   }
-  return { fetchStudents, insertMany };
+  return { fetchStudents, insertMany, schema };
 };
 // (async function () { await fetchstudents(2) }())

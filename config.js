@@ -9,9 +9,9 @@ module.exports = {
     },
     haiphong:{
       url:'http://diemthi3.haiphong.edu.vn/TraCuu/TraCuu',
-      prefixId:'03',
-      cityId:1,
-      endId:79236,
+      prefixId:'030',
+      cityId:3,
+      endId:12222,
       crawlerGroup:'hanoi'
     },
     hochiminh:{

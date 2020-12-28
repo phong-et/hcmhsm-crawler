@@ -3,13 +3,13 @@ module.exports = (city) => {
     config = require('./config').cities[city],
     Student = require('./student')(city),
     appendFile = require('./utils').appendFile,
-    log = console.log;
-  log(city);
-  let delay = ({ second }) => {
+    log = console.log,
+    delay = ({ second }) => {
       return new Promise((resolve) => setTimeout(resolve, second * 1000));
     },
     studentFields = [
       'id',
+      'cmnd',
       'name',
       'date',
       'city',
@@ -31,6 +31,8 @@ module.exports = (city) => {
       'khxh',
       'khtn',
     ],
+    //studentFields = Object.keys(Student.schema.paths),
+
     removeAccents = (str) => {
       return str
         .normalize('NFD')
@@ -53,17 +55,19 @@ module.exports = (city) => {
             Cookie: cookie,
           },
         });
-        log(await response.text());
-        let data = await response.json();
 
+        let json = await response.text();
+        log(json);
+        //let data = await response.json();
+        let data = await JSON.parse(json);
         data = convert(data, id);
         return data;
       } catch (error) {
         log(error);
         if (error.message.indexOf(url) > -1) {
-          // log('Fetch again id=%s', id);
-          // delay({ second: 1 });
-          // fetchStudents(id);
+          log('Fetch again id=%s', id);
+          delay({ second: 1 });
+          fetchStudents(id);
         }
       }
     },
@@ -79,42 +83,50 @@ module.exports = (city) => {
       //   CMND: '',
       // };
 
-      let marks = {};
+      let student = {};
       if (data.Message && data.Message === 'Không tìm thấy thí sinh') {
         appendFile('./logs_' + city + '.txt', id);
         log(id);
         log(data);
-        marks = null;
+        student = null;
       } else {
         let rawMarks = data.DIEM_THI.trim().replace(/:   /g, ':').split('   ');
         rawMarks.forEach((mark) => {
           mark = mark.split(':');
           let m = {};
           m[removeAccents(mark[0]).replace(/ /g, '').toLowerCase()] = +mark[1];
-          marks = { ...marks, ...m };
+          student = { ...student, ...m };
         });
         studentFields.forEach((field) => {
           switch (field) {
             case 'id':
-              marks[field] = id;
+              student[field] = id;
               break;
+            case 'cmnd':
+              student[field] = data.CMND || '';
             case 'name':
+              student[field] = data.HO_TEN || '';
+              break;
             case 'date':
-              marks[field] = '';
+              student[field] = data.NGAY_SINH || '';
               break;
             case 'gender':
-              marks[field] = -1;
+              student[field] = data.GIOI_TINH
+                ? data.GIOI_TINH === 'Nam'
+                  ? 1
+                  : 0
+                : -1;
               break;
             case 'city':
-              marks[field] = 1;
+              student[field] = config.cityId;
               break;
             default:
-              marks[field] = marks[field] || -1;
+              student[field] = student[field] || -1;
               break;
           }
         });
       }
-      return marks;
+      return student;
     },
     generateStudentId = (from, to) => {
       let studentIds = [],
@@ -129,36 +141,49 @@ module.exports = (city) => {
       }
       return studentIds;
     },
-    run = async () => {
+    run = async ({ cookie, captchaCode }) => {
       let fetchStudentConfig = {
-        cookie: 'ASP.NET_SessionId=dbm5wl4trksdakalwqfanxlg',
-        captchaCode: 'yoNDd',
+        cookie: 'ASP.NET_SessionId=' + cookie,
+        captchaCode: captchaCode,
       };
-      fetchStudents('03000001', fetchStudentConfig);
-      //   log(config);
-      //   let studentIds = generateStudentId(61758, 79236);
-      //   let students = [],
-      //     quantityStudentPerFetch = 15,
-      //     count = 1;
-      //   for (let i = 0; i < studentIds.length; i++) {
-      //     let studentId = studentIds[i];
-      //     let student = await fetchStudents(studentId, fetchStudentConfig);
-      //     if (student) {
-      //       students.push(student);
-      //       count++;
-      //     }
-      //     if (count > quantityStudentPerFetch) {
-      //       await Student.insertMany(students);
-      //       count = 1;
-      //       students = [];
-      //       await delay({ second: 1 });
-      //     }
-      //   }
+      //log(fetchStudentConfig);
+      //log(await fetchStudents('03000001', fetchStudentConfig));
+      let studentIds = generateStudentId(1, 79236);
+      let students = [],
+        quantityStudentPerFetch = 5,
+        count = 1;
+      for (let i = 0; i < studentIds.length; i++) {
+        let studentId = studentIds[i];
+        let student = await fetchStudents(studentId, fetchStudentConfig);
+        if (student) {
+          students.push(student);
+          count++;
+        }
+        if (count > quantityStudentPerFetch) {
+          await Student.insertMany(students);
+          count = 1;
+          students = [];
+          await delay({ second: 1 });
+        }
+      }
     };
   return { run };
-  //run();
 };
 
 (async () => {
-  require('./crawl')(process.argv[2] || 'undefined').run();
+  const { program } = require('commander');
+  program
+    .version('0.0.1', '-v, --vers', 'output the current version')
+    .option('-d, --debug', 'output extra debugging')
+    .option('-c, --cookie <value>', 'cookie of config.url')
+    .option(
+      '-code, --captcha-code <value>',
+      'captcha code of config.url and cookie'
+    );
+  program.parse(process.argv);
+  let city = process.argv[2],
+    cookie = program.cookie,
+    captchaCode = program.captchaCode;
+  if (city) require('./crawl')(city).run({ cookie, captchaCode });
+  else console.log('You miss out city param');
 })();
