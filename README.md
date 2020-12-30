@@ -2,6 +2,8 @@
 
 ## Knowledge
 
+- Default params at command line is string, so number params need parse to number by **+**```number_param```
+
 - Cheerio, should use ```.text()``` instead ```.html()``` to avoid html string is encoded (entities html issues)
 - Avoid using ```Promise.all``` in many request network, should use ```Recursive```
   - Example, a studentIds array has 1000 id
@@ -61,6 +63,7 @@ function removeAccents(str) {
 ### Fetch All
 
 ### Missing year
+
 - hanoi
 - hcm
 - tayninh

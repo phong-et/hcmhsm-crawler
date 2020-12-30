@@ -21,7 +21,7 @@ module.exports = (city) => {
         .replace(/Đ/g, 'D');
     },
     fetchStudents = async (id, { cookie, captchaCode }) => {
-      let url = config.url;
+      let url = config.url + '/TraCuu/TraCuu';
       log('id=%s', id);
       try {
         let response = await fetch(url, {
@@ -33,6 +33,8 @@ module.exports = (city) => {
           headers: {
             'Content-Type': 'application/json',
             Cookie: cookie,
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36',
           },
         });
 
@@ -65,7 +67,15 @@ module.exports = (city) => {
 
       let student = {};
       if (data.Message && data.Message === 'Không tìm thấy thí sinh') {
-        appendFile('./log/' + city + '.txt', id);
+        let cityId = config.cityId;
+        appendFile(
+          './log/' +
+            (cityId <= 9 ? '0' + cityId : cityId) +
+            '_' +
+            city +
+            '.txt',
+          id
+        );
         log(id);
         log(data);
         student = null;
@@ -149,7 +159,7 @@ module.exports = (city) => {
     run = async ({
       cookie,
       captchaCode,
-      startId = 1,
+      startId,
       endId = config.endId,
       qSPF = QUANTITY_STUDENT_PER_FETCH,
     }) => {
@@ -159,11 +169,11 @@ module.exports = (city) => {
       };
       //log(fetchStudentConfig);
       //log(await fetchStudents('03000001', fetchStudentConfig));
-      let studentIds = generateStudentId(startId, endId);
+      let studentIds = generateStudentId(+startId, +endId);
       let students = [],
         count = 1,
         csvFile = './csv/' + city + '.csv';
-      if (startId === 1) toCsvHeader(csvFile);
+      if (startId == 1) toCsvHeader(csvFile);
       for (let i = 0; i < studentIds.length; i++) {
         let studentId = studentIds[i];
         let student = await fetchStudents(studentId, fetchStudentConfig);
