@@ -10,6 +10,7 @@ module.exports = (city) => {
     cmnd: String,
     name: String,
     date: String,
+    year: Number,
     gender: Number,
     city: Number,
     toan: Number,

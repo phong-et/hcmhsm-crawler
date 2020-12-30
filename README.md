@@ -59,3 +59,9 @@ function removeAccents(str) {
 ```
 
 ### Fetch All
+
+### Missing year
+- hanoi
+- hcm
+- tayninh
+- haiphong

@@ -1,5 +1,8 @@
 module.exports = (city) => {
   const fetch = require('node-fetch'),
+    fs = require('fs'),
+    QUANTITY_STUDENT_PER_FETCH = 5,
+    YEAR = 2020,
     config = require('./config').cities[city],
     Student = require('./student')(city),
     appendFile = require('./utils').appendFile,
@@ -7,32 +10,9 @@ module.exports = (city) => {
     delay = ({ second }) => {
       return new Promise((resolve) => setTimeout(resolve, second * 1000));
     },
-    studentFields = [
-      'id',
-      'cmnd',
-      'name',
-      'date',
-      'city',
-      'gender',
-      'gdcd',
-      'nguvan',
-      'lichsu',
-      'diali',
-      'toan',
-      'vatli',
-      'hoahoc',
-      'sinhhoc',
-      'tienganh',
-      'tiengnga',
-      'tiengduc',
-      'tiengphap',
-      'tiengtrung',
-      'tiengnhat',
-      'khxh',
-      'khtn',
-    ],
-    //studentFields = Object.keys(Student.schema.paths),
-
+    studentFields = Object.keys(Student.schema.paths).filter(
+      (field) => field !== '_id' && field !== '__v'
+    ),
     removeAccents = (str) => {
       return str
         .normalize('NFD')
@@ -57,7 +37,7 @@ module.exports = (city) => {
         });
 
         let json = await response.text();
-        log(json);
+        //log(json);
         //let data = await response.json();
         let data = await JSON.parse(json);
         data = convert(data, id);
@@ -67,7 +47,7 @@ module.exports = (city) => {
         if (error.message.indexOf(url) > -1) {
           log('Fetch again id=%s', id);
           delay({ second: 1 });
-          fetchStudents(id);
+          fetchStudents(id, { cookie, captchaCode });
         }
       }
     },
@@ -85,7 +65,7 @@ module.exports = (city) => {
 
       let student = {};
       if (data.Message && data.Message === 'Không tìm thấy thí sinh') {
-        appendFile('./logs_' + city + '.txt', id);
+        appendFile('./log/' + city + '.txt', id);
         log(id);
         log(data);
         student = null;
@@ -104,8 +84,12 @@ module.exports = (city) => {
               break;
             case 'cmnd':
               student[field] = data.CMND || '';
+              break;
             case 'name':
               student[field] = data.HO_TEN || '';
+              break;
+            case 'year':
+              student[field] = YEAR;
               break;
             case 'date':
               student[field] = data.NGAY_SINH || '';
@@ -126,32 +110,60 @@ module.exports = (city) => {
           }
         });
       }
+      //log(student);
       return student;
     },
     generateStudentId = (from, to) => {
       let studentIds = [],
-        studentIdPrefix = config.prefixId,
-        maxLengthStudentId = 5;
-      for (let i = from; i < to; i++) {
+        cityId = config.cityId,
+        studentIdPrefix = cityId <= 9 ? '0' + cityId : cityId;
+      for (let i = from; i <= to; i++) {
+        // 0.[00000] = 6 so 0, max = 99.000 => use 5
         studentIds.push(
-          studentIdPrefix +
-            '0'.repeat(maxLengthStudentId - i.toString().length) +
-            i
+          studentIdPrefix + '0'.repeat(6 - i.toString().length) + i
         );
       }
       return studentIds;
     },
-    run = async ({ cookie, captchaCode }) => {
+    toCsvHeader = (csvFile) => {
+      fs.writeFile(
+        './' + csvFile,
+        studentFields.toString() + '\r\n',
+        'utf8',
+        (err) => (err ? log(err) : log(csvFile))
+      );
+    },
+    toCsvBody = (body, csvFile) => {
+      let csv = [];
+      body.forEach((student) => {
+        let line = '';
+        studentFields.forEach((field) => {
+          line += student[field] + ',';
+        });
+        csv.push(line);
+      });
+      appendFile('./' + csvFile, csv.join('\r\n'), 'utf8', (err) =>
+        err ? log(err) : log(csvFile)
+      );
+    },
+    run = async ({
+      cookie,
+      captchaCode,
+      startId = 1,
+      endId = config.endId,
+      qSPF = QUANTITY_STUDENT_PER_FETCH,
+    }) => {
       let fetchStudentConfig = {
         cookie: 'ASP.NET_SessionId=' + cookie,
         captchaCode: captchaCode,
       };
       //log(fetchStudentConfig);
       //log(await fetchStudents('03000001', fetchStudentConfig));
-      let studentIds = generateStudentId(1, 79236);
+      let studentIds = generateStudentId(startId, endId);
       let students = [],
-        quantityStudentPerFetch = 5,
-        count = 1;
+        count = 1,
+        csvFile = './csv/' + city + '.csv';
+      if (startId === 1) toCsvHeader(csvFile);
       for (let i = 0; i < studentIds.length; i++) {
         let studentId = studentIds[i];
         let student = await fetchStudents(studentId, fetchStudentConfig);
@@ -159,8 +171,9 @@ module.exports = (city) => {
           students.push(student);
           count++;
         }
-        if (count > quantityStudentPerFetch) {
+        if (count > qSPF || i === studentIds.length - 1) {
           await Student.insertMany(students);
+          toCsvBody(students, csvFile);
           count = 1;
           students = [];
           await delay({ second: 1 });
@@ -176,6 +189,9 @@ module.exports = (city) => {
     .version('0.0.1', '-v, --vers', 'output the current version')
     .option('-d, --debug', 'output extra debugging')
     .option('-c, --cookie <value>', 'cookie of config.url')
+    .option('-s, --start-id <value>', 'start id student')
+    .option('-e, --end-id <value>', 'end id student')
+    .option('-q, --quantity-student-per-fetch <value>', 'end id student')
     .option(
       '-code, --captcha-code <value>',
       'captcha code of config.url and cookie'
@@ -183,7 +199,11 @@ module.exports = (city) => {
   program.parse(process.argv);
   let city = process.argv[2],
     cookie = program.cookie,
-    captchaCode = program.captchaCode;
-  if (city) require('./crawl')(city).run({ cookie, captchaCode });
+    captchaCode = program.captchaCode,
+    startId = program.startId,
+    endId = program.endId,
+    qSPF = program.quantityStudentPerFetch;
+  if (city)
+    require('./crawl')(city).run({ cookie, captchaCode, startId, endId, qSPF });
   else console.log('You miss out city param');
 })();
